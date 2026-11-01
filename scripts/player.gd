@@ -94,9 +94,9 @@ func _ready() -> void:
 
 	_flashlight = SpotLight3D.new()
 	_flashlight.position = Vector3(0.3, -0.1, -0.4)
-	_flashlight.spot_range = 18.0
-	_flashlight.spot_angle = 26.0
-	_flashlight.light_energy = 2.5
+	_flashlight.spot_range = 24.0
+	_flashlight.spot_angle = 32.0
+	_flashlight.light_energy = 4.0
 	_flashlight.light_color = Color(1.0, 0.95, 0.85)
 	_flashlight.shadow_enabled = true
 	_pitch.add_child(_flashlight)
