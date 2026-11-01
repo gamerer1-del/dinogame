@@ -15,6 +15,12 @@ const CAGES := [-14.0, -22.0, -30.0]   # ケージの中心 z
 const CAGE_HALF := 2.5
 const GOAL_Z := -57.0
 
+# 明るさの調整用。暗い・明るいと感じたらここを変える。
+const AMBIENT_ENERGY := 0.6                  # 部屋全体のうっすらした明るさ
+const EMERGENCY_COLOR := Color(1.0, 0.38, 0.3)   # 非常灯の色（真っ赤より少し白っぽく）
+const LIGHT_BOOST := 2.2                     # 照明の明るさの倍率
+const LIGHT_RANGE_ADD := 3.0                 # 照明の届く距離に足すメートル数
+
 var nav: NavigationRegion3D   # この下に置いた物から恐竜の通れる道（ナビメッシュ）を作る
 var outside: Node3D           # ナビメッシュに含めない物（天井、扉、出口）
 var player: Player
@@ -97,16 +103,16 @@ func _build_observation_room() -> void:
 	_wall_x(nav, 0, -5, 5, m_panel)
 	_wall_z(nav, -5, 0, -8, m_panel)
 	_wall_z(nav, 5, 0, -8, m_panel)
-	# 北の壁: 西側は壁、x -2..-0.4 が扉の穴、x 0.4..2 が通路を見下ろす窓
+	# 北の壁: 西側は壁、x -1.85..0.6 が扉の穴（恐竜も通れる幅）、x 0.8..1.85 が通路を見下ろす窓
 	_wall_x(nav, -8, -5, -2, m_panel)
-	_wall_x(nav, -8, -0.4, 0.4, m_panel, 0.0)
+	_wall_x(nav, -8, 0.6, 0.8, m_panel, 0.0)
 	_wall_x(nav, -8, 2, 5, m_panel)
-	_box(nav, Vector3(1.2, 0.5, -8), Vector3(1.6, 1.0, T), m_panel)                 # 窓の下の腰壁
-	_box(nav, Vector3(1.2, 1.0 + (H - 1.0) / 2.0, -8), Vector3(1.6, H - 1.0, 0.08), m_glass)
+	_box(nav, Vector3(1.32, 0.5, -8), Vector3(1.05, 1.0, T), m_panel)                # 窓の下の腰壁
+	_box(nav, Vector3(1.32, 1.0 + (H - 1.0) / 2.0, -8), Vector3(1.05, H - 1.0, 0.08), m_glass)
 	# 机と観測用コンソール
 	_box(nav, Vector3(-3, 0.4, -3), Vector3(2, 0.8, 1), m_furniture)
 	_box(nav, Vector3(2.8, 0.6, -6.9), Vector3(2.4, 1.2, 0.8), m_furniture)
-	_light(Vector3(0, 3.0, -4), Color(1.0, 0.15, 0.1), 1.2, 8.0, false)
+	_light(Vector3(0, 3.0, -4), EMERGENCY_COLOR, 1.2, 8.0, false)
 
 
 func _build_corridor() -> void:
@@ -129,9 +135,9 @@ func _build_corridor() -> void:
 	_puddle(Rect2(-1.5, -24, 3, 3))
 
 	for z in [-12.0, -28.0]:
-		_light(Vector3(0, 3.0, z), Color(1.0, 0.15, 0.1), 1.2, 7.0, false)
+		_light(Vector3(0, 3.0, z), EMERGENCY_COLOR, 1.2, 7.0, false)
 	for z in [-20.0, -36.0]:
-		_light(Vector3(0, 3.0, z), Color(1.0, 0.15, 0.1), 1.2, 7.0, true)
+		_light(Vector3(0, 3.0, z), EMERGENCY_COLOR, 1.2, 7.0, true)
 
 
 ## 片側のケージ。通路側は鉄格子で、真ん中の格子が壊れて出入りできる。
@@ -180,8 +186,8 @@ func _build_feeding_room() -> void:
 	outside.add_child(door)
 	_box(outside, Vector3(1.4, 1.3, -53.75), Vector3(0.2, 0.3, 0.06), reader, false)
 
-	_light(Vector3(-4, 3.0, -42), Color(1.0, 0.15, 0.1), 1.3, 8.0, false)
-	_light(Vector3(4, 3.0, -50), Color(1.0, 0.15, 0.1), 1.3, 8.0, true)
+	_light(Vector3(-4, 3.0, -42), EMERGENCY_COLOR, 1.3, 8.0, false)
+	_light(Vector3(4, 3.0, -50), EMERGENCY_COLOR, 1.3, 8.0, true)
 
 
 func _build_exit() -> void:
@@ -202,15 +208,17 @@ func _spawn_player() -> void:
 
 
 func _spawn_stalkers() -> void:
-	# 1匹目: 通路の東側、いちばん手前のケージから出てくる
+	# 1匹目: 通路の東側、いちばん手前のケージから出てくる。
+	# 通路とケージだけでなく、観察室の中や給餌室の入口まで見回りに来る。
 	_stalker(Vector3(3.5, 0.1, -14), [
-		Vector3(0, 0, -11), Vector3(0, 0, -36), Vector3(-3.5, 0, -30),
-		Vector3(0, 0, -26), Vector3(3.5, 0, -22), Vector3(0, 0, -16),
+		Vector3(0, 0, -11), Vector3(-1, 0, -5.5), Vector3(3, 0, -3.5), Vector3(-3.5, 0, -5.5),
+		Vector3(0, 0, -16), Vector3(-3.5, 0, -22), Vector3(0, 0, -36), Vector3(0, 0, -42),
+		Vector3(-3.5, 0, -30), Vector3(0, 0, -26), Vector3(3.5, 0, -22),
 	])
-	# 2匹目: 給餌室をぐるりと回る
+	# 2匹目: 給餌室をぐるりと回り、ときどき通路の奥やケージにも出てくる
 	_stalker(Vector3(6, 0.1, -52), [
-		Vector3(6, 0, -40), Vector3(-5.5, 0, -40), Vector3(-6, 0, -48.5),
-		Vector3(0, 0, -49), Vector3(6, 0, -47),
+		Vector3(6, 0, -40), Vector3(0, 0, -33), Vector3(3.5, 0, -30), Vector3(-5.5, 0, -40),
+		Vector3(-6, 0, -48.5), Vector3(0, 0, -49), Vector3(6, 0, -47),
 	])
 
 
@@ -293,14 +301,14 @@ func _light(pos: Vector3, color: Color, energy: float, light_range: float, flick
 	var l: OmniLight3D
 	if flicker:
 		var f := FlickerLight.new()
-		f.base_energy = energy
+		f.base_energy = energy * LIGHT_BOOST
 		l = f
 	else:
 		l = OmniLight3D.new()
 	l.position = pos
 	l.light_color = color
-	l.light_energy = energy
-	l.omni_range = light_range
+	l.light_energy = energy * LIGHT_BOOST
+	l.omni_range = light_range + LIGHT_RANGE_ADD
 	l.shadow_enabled = true
 	add_child(l)
 
@@ -331,13 +339,13 @@ func _make_environment() -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.01, 0.01, 0.015)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.35, 0.38, 0.5)
-	env.ambient_light_energy = 0.15
+	env.ambient_light_color = Color(0.5, 0.52, 0.6)
+	env.ambient_light_energy = AMBIENT_ENERGY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.glow_enabled = true
 	env.fog_enabled = true
-	env.fog_light_color = Color(0.05, 0.05, 0.07)
-	env.fog_density = 0.04
+	env.fog_light_color = Color(0.12, 0.12, 0.15)
+	env.fog_density = 0.015
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -355,6 +363,14 @@ func _selftest() -> void:
 	var polys := nav.navigation_mesh.get_polygon_count()
 	print("SELFTEST navmesh polygons: ", polys)
 	ok = ok and polys > 0
+
+	# 恐竜が通路から観察室・給餌室の中まで歩いて行けるか
+	var map := get_world_3d().navigation_map
+	for goal in [Vector3(0, 0, -4), Vector3(4, 0, -48), Vector3(3.5, 0, -14)]:
+		var path := NavigationServer3D.map_get_path(map, Vector3(0, 0, -25), goal, true)
+		var reach: float = path[path.size() - 1].distance_to(goal) if path.size() > 0 else 999.0
+		print("SELFTEST path to %s: end %.2f m away" % [goal, reach])
+		ok = ok and reach < 0.8
 
 	var s: Stalker = get_tree().get_nodes_in_group("stalker")[0]
 	var p0 := s.global_position
