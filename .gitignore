@@ -2,3 +2,10 @@
 .godot/
 export_presets.cfg
 /build/
+
+# Blender の作業ファイル（tools/blender のスクリプトから作り直せる）
+tools/blender/textures/
+tools/blender/*.blend
+tools/blender/*.blend1
+__pycache__/
+tools/blender/src/
