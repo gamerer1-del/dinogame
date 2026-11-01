@@ -49,6 +49,7 @@ func player_caught() -> void:
 		return
 	state = State.CAUGHT
 	state_changed.emit(state)
+	Sfx.play("caught", -2.0)
 	await get_tree().create_timer(2.5).timeout
 	restart()
 
@@ -58,6 +59,7 @@ func clear_game() -> void:
 		return
 	state = State.CLEAR
 	state_changed.emit(state)
+	Sfx.play("elevator", -4.0)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 

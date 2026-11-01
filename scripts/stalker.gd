@@ -31,6 +31,9 @@ var _player: Player
 var _agent: NavigationAgent3D
 var _eye_mat: StandardMaterial3D
 var _dino: DinoModel
+var _growl_timer := randf_range(3.0, 8.0)
+var _stride := 0.0
+const STRIDE_LENGTH := 1.1        # この距離ごとに足音が鳴る（メートル）
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
@@ -142,6 +145,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _animate(delta: float) -> void:
+	_play_sounds(delta)
 	if _dino == null:
 		return
 	var mood := DinoModel.Mood.CALM
@@ -155,7 +159,12 @@ func _animate(delta: float) -> void:
 
 
 func _enter(new_state: int) -> void:
+	var old := state
 	state = new_state
+	if new_state == State.ALERT and old != State.ALERT:
+		Sfx.play_at("snort", global_position + Vector3.UP, -2.0, 18.0)
+	elif new_state == State.CHASE and old != State.CHASE:
+		Sfx.play_at("screech", global_position + Vector3.UP, 4.0, 45.0)
 	match new_state:
 		State.ALERT:
 			_timer = ALERT_TIME
@@ -170,6 +179,22 @@ func _enter(new_state: int) -> void:
 		State.CATCH:
 			Game.player_caught()
 	_set_eye_color()
+
+
+## 足音と、ときどきのうなり声。
+func _play_sounds(delta: float) -> void:
+	var speed := Vector2(velocity.x, velocity.z).length()
+	if is_on_floor() and speed > 0.3:
+		_stride += speed * delta
+		if _stride >= STRIDE_LENGTH:
+			_stride = 0.0
+			var vol := -2.0 if state == State.CHASE else -9.0
+			Sfx.play_at("dino_step", global_position, vol, 22.0, 0.12)
+	_growl_timer -= delta
+	if _growl_timer <= 0.0:
+		_growl_timer = randf_range(5.0, 11.0)
+		if state == State.PATROL or state == State.SEARCH:
+			Sfx.play_at("growl", global_position + Vector3.UP * 1.3, -3.0, 30.0, 0.12)
 
 
 ## 物音を聞いたとき。届く範囲内なら、その方向を警戒してから調べに行く。

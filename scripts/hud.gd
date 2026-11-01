@@ -13,6 +13,11 @@ var _hint: Label
 var _center: Label
 var _hint_time := 0.0
 var _t := 0.0
+var _beat_timer := 0.0
+
+## 恐竜の気配の段階ごとの心拍の間隔（秒）と音量。0 は気配なしで鳴らさない。
+const BEAT_INTERVAL := [0.0, 1.1, 0.75, 0.42]
+const BEAT_VOLUME := [-80.0, -12.0, -6.0, -1.0]
 
 const THREAT_TEXT := ["", "……何かの気配がする", "何かを探している……動くな", "見つかった！ 隠れろ！"]
 const THREAT_ALPHA := [0.0, 0.04, 0.10, 0.22]
@@ -60,6 +65,10 @@ func _process(delta: float) -> void:
 	_threat.text = THREAT_TEXT[level]
 	_threat.modulate = Color(1, 0.3, 0.25) if level == 3 else Color(1, 1, 1, 0.85)
 	_t += delta * (2.0 + level * 2.5)
+	_beat_timer -= delta
+	if level > 0 and Game.state == Game.State.PLAY and _beat_timer <= 0.0:
+		_beat_timer = BEAT_INTERVAL[level]
+		Sfx.play("heartbeat", BEAT_VOLUME[level])
 	_pulse.color.a = THREAT_ALPHA[level] * (0.6 + 0.4 * sin(_t))
 
 	_prompt.text = ""

@@ -55,6 +55,7 @@ func _on_body_entered(_body: Node) -> void:
 	if _armed and _cooldown <= 0.0:
 		_cooldown = 0.25
 		Game.emit_noise(global_position, IMPACT_NOISE, self)
+		Sfx.play_at("can", global_position, 0.0, 30.0, 0.15)
 
 
 func get_prompt(_player) -> String:
@@ -63,5 +64,6 @@ func get_prompt(_player) -> String:
 
 func interact(player) -> void:
 	player.ammo += 1
+	Sfx.play("pickup", -10.0)
 	Game.show_hint("空き缶を拾った。左クリックで投げると、落ちた場所で音が鳴る")
 	queue_free()

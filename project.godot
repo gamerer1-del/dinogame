@@ -13,6 +13,7 @@ config/features=PackedStringArray("4.3", "Forward Plus")
 [autoload]
 
 Game="*res://scripts/game.gd"
+Sfx="*res://scripts/sfx.gd"
 
 [display]
 
