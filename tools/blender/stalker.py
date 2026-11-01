@@ -3,7 +3,7 @@
 体の形は Meshy で作った src/dino_meshy.glb（コミットしない）。足元が原点、頭が +Y 向きに直してから、
 骨の位置は体の形に合わせて手で決め、重みは「骨までの距離」で計算する（自動の重みは生成メッシュだと失敗しやすい）。
 アニメーション（stalker.gd が状態に合わせて切り替える）:
-  idle 待機 / walk 歩き（1秒で約1.2m）/ run 走り（0.5秒で約2.4m）/ look 見回し / roar 威嚇 / attack 噛みつき
+  idle 待機 / walk 歩き（28フレームで約1.4m）/ run 走り（14フレームで約2.6m）/ look 見回し / roar 威嚇 / attack 噛みつき
 """
 import math
 import os
@@ -176,12 +176,18 @@ def _key(arm, f):
         b.keyframe_insert("location", frame=f)
 
 
-def _r(pb, name, x=0.0, z=0.0):
-    pb[name].rotation_euler = (x, 0.0, z)
+def _r(pb, name, x=0.0, z=0.0, y=0.0):
+    """x: 前後, z: 左右, y: ねじれ（腰の左右の傾きにだけ使う）。"""
+    pb[name].rotation_euler = (x, y, z)
 
 
-def _gait(arm, name, frames, thigh, lift_k, bob, lean, neck, tail_up, sway):
-    """歩き・走りの共通部分。thigh: 脚の振り幅、lift_k: 足の上げ方、lean: 体の前傾。"""
+def _gait(arm, name, frames, thigh, lift_k, bob, lean, neck, tail_up, sway, shift, drop=0.0):
+    """歩き・走りの共通部分。体全体で歩くように、脚に合わせて腰・胴・首・尾を動かす。
+
+    thigh: 脚の振り幅、lift_k: 足の上げ方、bob: 上下動、lean: 体の前傾（シーソーのように尾と頭でつり合う）、
+    sway: 尾の左右の振り、shift: 重心の左右移動、drop: 腰を落とす量（走りは低く構える）。
+    左脚は cos(ph) > 0 の間が振り出し（空中）、cos(ph) < 0 の間が支え。
+    """
     _new_action(arm, name)
     pb = arm.pose.bones
     for f in range(0, frames + 1):
@@ -189,21 +195,32 @@ def _gait(arm, name, frames, thigh, lift_k, bob, lean, neck, tail_up, sway):
         for tag, off in (("L", 0.0), ("R", math.pi)):
             p = ph + off
             swing = math.sin(p)              # +: 脚が前にある
-            lift = max(0.0, math.cos(p))     # 脚が前へ動いている間だけ足を上げる
-            _r(pb, "thigh." + tag, thigh * swing + 0.25 * lift_k * lift)
-            _r(pb, "shin." + tag, -0.9 * lift_k * lift)
-            _r(pb, "meta." + tag, 0.7 * lift_k * lift - 0.25 * thigh * swing)
-            _r(pb, "toe." + tag, -0.6 * lift_k * lift + 0.3 * max(0.0, -swing))
-            _r(pb, "arm." + tag, -0.25 * lean + 0.1 * swing)
-            _r(pb, "forearm." + tag, 0.35 * lean)
-        pb["pelvis"].location = (0, 0, -bob * (1 - abs(math.sin(ph))))
-        _r(pb, "pelvis", -lean, 0.06 * math.sin(ph))
-        _r(pb, "chest", 0.02 * math.cos(2 * ph), -0.08 * math.sin(ph))
-        _r(pb, "neck1", -neck + 0.03 * math.cos(2 * ph), 0.04 * math.sin(ph))
-        _r(pb, "neck2", -0.5 * neck, 0.0)
-        _r(pb, "head", 1.2 * neck + lean - 0.04 * math.cos(2 * ph), 0.06 * math.sin(ph))
+            lift = max(0.0, math.cos(p))     # 振り出しの間だけ足をたたんで上げる
+            stance = max(0.0, -math.cos(p))  # 支えている間
+            land = max(0.0, swing) * stance  # 着地直後に膝で衝撃を受ける
+            push = max(0.0, -swing) * stance  # 蹴り出し
+            _r(pb, "thigh." + tag, thigh * swing + 0.3 * lift_k * lift)
+            _r(pb, "shin." + tag, -1.05 * lift_k * lift - 0.18 * land)
+            _r(pb, "meta." + tag, 0.8 * lift_k * lift - 0.25 * thigh * swing + 0.15 * land - 0.2 * push)
+            _r(pb, "toe." + tag, -0.7 * lift_k * lift + 0.45 * push)
+            _r(pb, "arm." + tag, -0.25 * lean - 0.12 * swing)
+            _r(pb, "forearm." + tag, 0.35 * lean + 0.1 * lift)
+        c = math.cos(ph)
+        # 重心を支えている脚の上へ（左脚 = +X）、支えの真ん中で一番高く、両足が着くときに沈む
+        pb["pelvis"].location = (-shift * c, 0, bob * (abs(c) - 1.0) - drop)
+        # 腰: 前傾、振り出す脚の側が下がる（ねじれ）、振り出す脚と一緒に少し前へ回る（左右）
+        _r(pb, "pelvis", -lean + 0.03 * math.cos(2 * ph), 0.09 * math.sin(ph), 0.07 * c)
+        # 胴は腰と逆にひねってつり合う
+        _r(pb, "chest", 0.04 * math.cos(2 * ph), -0.14 * math.sin(ph), -0.04 * c)
+        # 首は一歩ごとに前後に揺れ、頭は揺れを打ち消してあまり傾かない
+        _r(pb, "neck1", 0.6 * lean - neck + 0.06 * math.cos(2 * ph), 0.06 * math.sin(ph))
+        _r(pb, "neck2", -0.5 * neck - 0.05 * math.cos(2 * ph + 0.5), 0.03 * math.sin(ph))
+        _r(pb, "head", 1.2 * neck + 0.4 * lean - 0.03 * math.cos(2 * ph), -0.04 * math.sin(ph))
+        # 尾は腰と逆へ、根元から先へ遅れて波のように振れる
         for i, t in enumerate(("tail1", "tail2", "tail3", "tail4")):
-            _r(pb, t, tail_up + 0.04 * math.cos(2 * ph - i * 0.7), sway * math.sin(ph - i * 0.8))
+            k = (i + 1) / 4
+            _r(pb, t, tail_up + lean * 0.4 + 0.05 * math.cos(2 * ph - i * 0.8),
+               -sway * (0.6 + k) * math.sin(ph - i * 0.7))
         _key(arm, f)
 
 
@@ -310,8 +327,9 @@ def _attack(arm):
 
 def _animations(arm):
     arm.animation_data_create()
-    _gait(arm, "walk", 24, thigh=0.38, lift_k=0.6, bob=0.025, lean=0.0, neck=0.0, tail_up=0.0, sway=0.1)
-    _gait(arm, "run", 12, thigh=0.7, lift_k=1.0, bob=0.06, lean=0.25, neck=0.3, tail_up=0.15, sway=0.05)
+    _gait(arm, "walk", 28, thigh=0.42, lift_k=0.7, bob=0.05, lean=0.18, neck=0.0, tail_up=0.0, sway=0.14, shift=0.05)
+    _gait(arm, "run", 14, thigh=0.75, lift_k=0.85, bob=0.07, lean=0.35, neck=0.25, tail_up=0.1, sway=0.08, shift=0.03,
+          drop=0.08)
     _idle(arm)
     _look(arm)
     _roar(arm)
