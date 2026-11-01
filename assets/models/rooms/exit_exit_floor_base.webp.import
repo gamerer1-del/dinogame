@@ -2,23 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://nthuvpcyhikl"
-path="res://.godot/imported/exit_exit_floor_base.webp-a96e660786e7db9b514d426b2ec76000.ctex"
+uid="uid://cru40y3xief8m"
+path.s3tc="res://.godot/imported/exit_exit_floor_base.webp-a96e660786e7db9b514d426b2ec76000.s3tc.ctex"
 metadata={
-"vram_texture": false
-}
-generator_parameters={
-"md5": "eee6f60c6a25837ca1f4532193fa0113"
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 
 [deps]
 
 source_file="res://assets/models/rooms/exit_exit_floor_base.webp"
-dest_files=["res://.godot/imported/exit_exit_floor_base.webp-a96e660786e7db9b514d426b2ec76000.ctex"]
+dest_files=["res://.godot/imported/exit_exit_floor_base.webp-a96e660786e7db9b514d426b2ec76000.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +38,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

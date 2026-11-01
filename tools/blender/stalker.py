@@ -1,8 +1,9 @@
-"""恐竜（ストーカー）に骨と歩きのアニメーションを付けて assets/models/stalker.glb に書き出す。
+"""恐竜（ストーカー）に骨とアニメーションを付けて assets/models/stalker.glb に書き出す。
 
 体の形は Meshy で作った src/dino_meshy.glb（コミットしない）。足元が原点、頭が +Y 向きに直してから、
 骨の位置は体の形に合わせて手で決め、重みは「骨までの距離」で計算する（自動の重みは生成メッシュだと失敗しやすい）。
-歩きは名前 "walk" の1秒のループ。ゲームが自動で再生する。
+アニメーション（stalker.gd が状態に合わせて切り替える）:
+  idle 待機 / walk 歩き（1秒で約1.2m）/ run 走り（0.5秒で約2.4m）/ look 見回し / roar 威嚇 / attack 噛みつき
 """
 import math
 import os
@@ -16,7 +17,8 @@ SRC = os.path.join(HERE, "src", "dino_meshy.glb")
 OUT = os.path.join(HERE, "..", "..", "assets", "models", "stalker.glb")
 SCALE = 1.1       # 生成された体（全長 1.9m）を全長 2.1m、頭の高さ 1.5m に
 FPS = 24
-CYCLE = 24        # 1歩きサイクル = 1秒
+JAW_Y = 0.46      # 口の付け根。これより前で JAW_Z より下の頂点が下あご
+JAW_Z = 1.315
 
 # 骨: 名前, 親, 根元, 先端（足元原点、+Y が前、単位 m）。L/R は x の符号で左右に作る
 CENTER = [
@@ -25,6 +27,7 @@ CENTER = [
     ("neck1", "chest", (0, 0.15, 1.0), (0, 0.24, 1.22)),
     ("neck2", "neck1", (0, 0.24, 1.22), (0, 0.34, 1.37)),
     ("head", "neck2", (0, 0.34, 1.37), (0, 0.73, 1.33)),
+    ("jaw", "head", (0, JAW_Y, 1.31), (0, 0.74, 1.29)),
     ("tail1", "pelvis", (0, -0.15, 0.95), (0, -0.45, 0.86)),
     ("tail2", "tail1", (0, -0.45, 0.86), (0, -0.78, 0.62)),
     ("tail3", "tail2", (0, -0.78, 0.62), (0, -1.08, 0.34)),
@@ -61,7 +64,9 @@ def build():
     body.parent = arm
     mod = body.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
-    _walk(arm)
+    for m in body.data.materials:
+        m.use_backface_culling = False   # 口を開けたときに頭の内側が抜けて見えないように
+    _animations(arm)
     return arm, body
 
 
@@ -126,6 +131,11 @@ def _weights(body, arm):
             d = np.where(co[:, 0] < 0.02, d, 1e3)
         if name.startswith(("arm", "forearm")):
             d = np.where(co[:, 1] > 0.08, d, 1e3)   # 腕は胸より前の頂点だけ
+        if name == "jaw":
+            # 下あごは位置で決める。口の付け根の 6cm はあごと頭で混ぜる
+            lower = (co[:, 1] > JAW_Y) & (co[:, 2] < JAW_Z) & (co[:, 2] > 1.2)
+            ramp = np.clip((co[:, 1] - JAW_Y) / 0.06, 0, 1)
+            d = np.where(lower, 0.004 + 0.03 * (1 - ramp), 1e3)
         names.append(name)
         dists.append(d)
     D = np.stack(dists, axis=1)
@@ -140,46 +150,183 @@ def _weights(body, arm):
                 groups[names[j]].add([i], float(wj), "REPLACE")
 
 
-def _walk(arm):
-    """1秒の歩き。脚を交互に振り、体を上下させ、尾と頭でバランスを取る。"""
-    act = bpy.data.actions.get("walk")
+# --- アニメーション ------------------------------------------------------------------
+# 骨のローカル X 回り = 前後（＋で先端が上・前へ）、ローカル Z 回り = 左右。ローカル Y 回りはねじれなので使わない。
+
+LEGS = ("thigh", "shin", "meta", "toe")
+
+
+def _new_action(arm, name):
+    act = bpy.data.actions.get(name)
     if act:
         bpy.data.actions.remove(act)
-    act = bpy.data.actions.new("walk")
+    act = bpy.data.actions.new(name)
     act.use_fake_user = True
-    arm.animation_data_create()
     arm.animation_data.action = act
-    pb = arm.pose.bones
-    for b in pb:
+    for b in arm.pose.bones:
         b.rotation_mode = "XYZ"
-    for f in range(0, CYCLE + 1, 2):
-        ph = f / CYCLE * math.tau
+        b.rotation_euler = (0, 0, 0)
+        b.location = (0, 0, 0)
+    return act
+
+
+def _key(arm, f):
+    for b in arm.pose.bones:
+        b.keyframe_insert("rotation_euler", frame=f)
+        b.keyframe_insert("location", frame=f)
+
+
+def _r(pb, name, x=0.0, z=0.0):
+    pb[name].rotation_euler = (x, 0.0, z)
+
+
+def _gait(arm, name, frames, thigh, lift_k, bob, lean, neck, tail_up, sway):
+    """歩き・走りの共通部分。thigh: 脚の振り幅、lift_k: 足の上げ方、lean: 体の前傾。"""
+    _new_action(arm, name)
+    pb = arm.pose.bones
+    for f in range(0, frames + 1):
+        ph = f / frames * math.tau
         for tag, off in (("L", 0.0), ("R", math.pi)):
             p = ph + off
-            swing = math.sin(p)            # +: 前へ
-            lift = max(0.0, math.cos(p))   # 前へ振る間だけ足を上げる
-            pb["thigh." + tag].rotation_euler = (-0.42 * swing - 0.15 * lift, 0, 0)
-            pb["shin." + tag].rotation_euler = (0.55 * lift, 0, 0)
-            pb["meta." + tag].rotation_euler = (-0.45 * lift + 0.2 * swing, 0, 0)
-            pb["toe." + tag].rotation_euler = (0.25 * lift - 0.15 * max(0.0, -swing), 0, 0)
-            pb["arm." + tag].rotation_euler = (0.12 * swing, 0, 0)
-        pb["pelvis"].location = (0, 0, -0.03 * abs(math.cos(ph)))  # 一歩ごとに少し沈む（ローカル Z ≒ 上）
-        pb["pelvis"].rotation_euler = (0, 0.05 * math.sin(ph), 0)
-        pb["chest"].rotation_euler = (0.03 * math.cos(2 * ph), -0.06 * math.sin(ph), 0)
-        pb["neck1"].rotation_euler = (-0.04 * math.cos(2 * ph), 0.04 * math.sin(ph), 0)
-        pb["head"].rotation_euler = (0.05 * math.cos(2 * ph), 0.05 * math.sin(ph), 0)
+            swing = math.sin(p)              # +: 脚が前にある
+            lift = max(0.0, math.cos(p))     # 脚が前へ動いている間だけ足を上げる
+            _r(pb, "thigh." + tag, thigh * swing + 0.25 * lift_k * lift)
+            _r(pb, "shin." + tag, -0.9 * lift_k * lift)
+            _r(pb, "meta." + tag, 0.7 * lift_k * lift - 0.25 * thigh * swing)
+            _r(pb, "toe." + tag, -0.6 * lift_k * lift + 0.3 * max(0.0, -swing))
+            _r(pb, "arm." + tag, -0.25 * lean + 0.1 * swing)
+            _r(pb, "forearm." + tag, 0.35 * lean)
+        pb["pelvis"].location = (0, 0, -bob * (1 - abs(math.sin(ph))))
+        _r(pb, "pelvis", -lean, 0.06 * math.sin(ph))
+        _r(pb, "chest", 0.02 * math.cos(2 * ph), -0.08 * math.sin(ph))
+        _r(pb, "neck1", -neck + 0.03 * math.cos(2 * ph), 0.04 * math.sin(ph))
+        _r(pb, "neck2", -0.5 * neck, 0.0)
+        _r(pb, "head", 1.2 * neck + lean - 0.04 * math.cos(2 * ph), 0.06 * math.sin(ph))
         for i, t in enumerate(("tail1", "tail2", "tail3", "tail4")):
-            pb[t].rotation_euler = (0.03 * math.cos(2 * ph - i * 0.6), 0.08 * math.sin(ph - i * 0.7), 0)
-        for b in pb:
-            b.keyframe_insert("rotation_euler", frame=f)
-            b.keyframe_insert("location", frame=f)
+            _r(pb, t, tail_up + 0.04 * math.cos(2 * ph - i * 0.7), sway * math.sin(ph - i * 0.8))
+        _key(arm, f)
+
+
+def _idle(arm):
+    """2秒の待機。呼吸で胸がふくらみ、頭が小さく動き、尾がゆっくり揺れる。"""
+    _new_action(arm, "idle")
+    pb = arm.pose.bones
+    n = 48
+    for f in range(0, n + 1, 2):
+        ph = f / n * math.tau
+        _r(pb, "pelvis", 0.02 * math.sin(ph))
+        _r(pb, "chest", 0.03 * math.sin(ph))
+        _r(pb, "neck1", -0.03 * math.sin(ph))
+        _r(pb, "head", 0.04 * math.sin(ph + 0.6), 0.12 * math.sin(ph) * (1.0 if f < 30 else 0.4))
+        for tag in ("L", "R"):
+            _r(pb, "thigh." + tag, 0.05)
+            _r(pb, "shin." + tag, -0.08)
+            _r(pb, "meta." + tag, 0.05)
+            _r(pb, "arm." + tag, -0.05 + 0.05 * math.sin(ph))
+            _r(pb, "forearm." + tag, 0.15 + 0.08 * math.sin(ph + 1))
+        for i, t in enumerate(("tail1", "tail2", "tail3", "tail4")):
+            _r(pb, t, 0.03 * math.sin(ph - i), 0.07 * math.sin(ph * 0.5 * 2 - i * 0.6))
+        _r(pb, "jaw", -0.03 * max(0.0, math.sin(ph * 2)))
+        _key(arm, f)
+
+
+def _look(arm):
+    """3秒の見回し。首を左右に振り、鼻先を下げてにおいを嗅ぐ。"""
+    _new_action(arm, "look")
+    pb = arm.pose.bones
+    n = 72
+    turns = [(0, 0.0), (12, 0.7), (26, 0.7), (40, -0.7), (54, -0.7), (66, 0.0), (72, 0.0)]
+    for f in range(0, n + 1, 2):
+        yaw = float(np.interp(f, [a for a, _ in turns], [b for _, b in turns]))
+        sniff = 0.08 * math.sin(f / n * math.tau * 6) * (1.0 if 26 <= f <= 40 or 54 <= f <= 66 else 0.0)
+        _r(pb, "pelvis", -0.08, -0.1 * yaw)
+        _r(pb, "chest", -0.05, 0.3 * yaw)
+        _r(pb, "neck1", -0.25, 0.4 * yaw)
+        _r(pb, "neck2", -0.1, 0.4 * yaw)
+        _r(pb, "head", 0.2 + sniff, 0.5 * yaw)
+        for tag in ("L", "R"):
+            _r(pb, "thigh." + tag, 0.1)
+            _r(pb, "shin." + tag, -0.2)
+            _r(pb, "meta." + tag, 0.12)
+            _r(pb, "forearm." + tag, 0.3)
+        for i, t in enumerate(("tail1", "tail2", "tail3", "tail4")):
+            _r(pb, t, 0.05, -0.25 * yaw * (i + 1) / 4)
+        _r(pb, "jaw", -0.04 * abs(sniff) / 0.08)
+        _key(arm, f)
+
+
+def _roar(arm):
+    """1.5秒の威嚇（1回だけ）。首を反らして口を大きく開け、頭を震わせる。"""
+    _new_action(arm, "roar")
+    pb = arm.pose.bones
+    n = 36
+    up = [(0, 0.0), (8, 1.0), (28, 1.0), (36, 0.0)]
+    for f in range(0, n + 1):
+        u = float(np.interp(f, [a for a, _ in up], [b for _, b in up]))
+        shake = 0.06 * math.sin(f * 2.2) * (1.0 if 8 <= f <= 28 else 0.0)
+        _r(pb, "pelvis", 0.06 * u)
+        _r(pb, "chest", 0.12 * u)
+        _r(pb, "neck1", 0.25 * u)
+        _r(pb, "neck2", 0.15 * u)
+        _r(pb, "head", 0.3 * u + shake, shake)
+        _r(pb, "jaw", -0.45 * u)
+        for tag, s in (("L", 1), ("R", -1)):
+            _r(pb, "thigh." + tag, 0.12 * u)
+            _r(pb, "shin." + tag, -0.25 * u)
+            _r(pb, "meta." + tag, 0.15 * u)
+            _r(pb, "arm." + tag, 0.35 * u, 0.2 * s * u)
+            _r(pb, "forearm." + tag, 0.4 * u)
+        for i, t in enumerate(("tail1", "tail2", "tail3", "tail4")):
+            _r(pb, t, 0.12 * u, 0.05 * math.sin(f * 0.8 - i))
+        _key(arm, f)
+
+
+def _attack(arm):
+    """0.75秒の噛みつき（1回だけ）。身を引いてから首を突き出し、口を閉じる。"""
+    _new_action(arm, "attack")
+    pb = arm.pose.bones
+    keys = [  # フレーム, 引き(-)/突き(+), 口
+        (0, 0.0, 0.0), (5, -1.0, 0.6), (9, 1.0, 1.0), (11, 1.0, 0.0), (18, 0.0, 0.0)]
+    for f in range(0, 19):
+        k = float(np.interp(f, [a for a, _, _ in keys], [b for _, b, _ in keys]))
+        j = float(np.interp(f, [a for a, _, _ in keys], [c for _, _, c in keys]))
+        pb["pelvis"].location = (0, 0.12 * k, -0.04 * abs(k))
+        _r(pb, "pelvis", -0.15 * max(0.0, k))
+        _r(pb, "chest", -0.1 * k)
+        _r(pb, "neck1", -0.45 * k)
+        _r(pb, "neck2", -0.2 * k)
+        _r(pb, "head", 0.35 * k)
+        _r(pb, "jaw", -0.55 * j)
+        for tag in ("L", "R"):
+            _r(pb, "thigh." + tag, 0.15 + 0.1 * k)
+            _r(pb, "shin." + tag, -0.3)
+            _r(pb, "meta." + tag, 0.2)
+            _r(pb, "arm." + tag, 0.5 * max(0.0, k))
+            _r(pb, "forearm." + tag, 0.5)
+        for i, t in enumerate(("tail1", "tail2", "tail3", "tail4")):
+            _r(pb, t, 0.1 * k)
+        _key(arm, f)
+
+
+def _animations(arm):
+    arm.animation_data_create()
+    _gait(arm, "walk", 24, thigh=0.38, lift_k=0.6, bob=0.025, lean=0.0, neck=0.0, tail_up=0.0, sway=0.1)
+    _gait(arm, "run", 12, thigh=0.7, lift_k=1.0, bob=0.06, lean=0.25, neck=0.3, tail_up=0.15, sway=0.05)
+    _idle(arm)
+    _look(arm)
+    _roar(arm)
+    _attack(arm)
+    arm.animation_data.action = bpy.data.actions["idle"]
     bpy.context.scene.render.fps = FPS
 
 
 def export():
     arm = bpy.data.objects["DinoRig"]
     body = bpy.data.objects["DinoBody"]
-    arm.animation_data.action = bpy.data.actions["walk"]
+    for o in (arm, body):
+        o.hide_set(False)
+        o.hide_viewport = False
+    arm.animation_data.action = bpy.data.actions["idle"]
     for o in bpy.context.view_layer.objects:
         o.select_set(o in (arm, body))
     bpy.context.view_layer.objects.active = arm

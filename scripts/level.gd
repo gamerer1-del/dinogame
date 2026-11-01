@@ -223,17 +223,14 @@ func _spawn_player() -> void:
 
 
 func _spawn_stalkers() -> void:
-	# 1匹目: 通路の東側、いちばん手前のケージから出てくる。
-	# 通路とケージだけでなく、観察室の中や給餌室の入口まで見回りに来る。
+	# 恐竜は1匹だけ。通路の東側、いちばん手前のケージから出てきて、
+	# 観察室の中から通路・ケージ、給餌室の奥までぐるりと見回る。
 	_stalker(Vector3(3.5, 0.1, -14), [
 		Vector3(0, 0, -11), Vector3(-1, 0, -5.5), Vector3(3, 0, -3.5), Vector3(-3.5, 0, -5.5),
-		Vector3(0, 0, -16), Vector3(-3.5, 0, -22), Vector3(0, 0, -36), Vector3(0, 0, -42),
-		Vector3(-3.5, 0, -30), Vector3(0, 0, -26), Vector3(3.5, 0, -22),
-	])
-	# 2匹目: 給餌室をぐるりと回り、ときどき通路の奥やケージにも出てくる
-	_stalker(Vector3(6, 0.1, -52), [
-		Vector3(6, 0, -40), Vector3(0, 0, -33), Vector3(3.5, 0, -30), Vector3(-5.5, 0, -40),
-		Vector3(-6, 0, -48.5), Vector3(0, 0, -49), Vector3(6, 0, -47),
+		Vector3(0, 0, -16), Vector3(-3.5, 0, -22), Vector3(3.5, 0, -30), Vector3(0, 0, -36),
+		Vector3(6, 0, -40), Vector3(6, 0, -47), Vector3(0, 0, -49), Vector3(-6, 0, -48.5),
+		Vector3(-5.5, 0, -40), Vector3(0, 0, -33), Vector3(-3.5, 0, -30), Vector3(0, 0, -26),
+		Vector3(3.5, 0, -22),
 	])
 
 
@@ -424,6 +421,17 @@ func _selftest() -> void:
 	await get_tree().create_timer(2.0).timeout
 	print("SELFTEST 2s later: ", Stalker.State.keys()[s.state])
 	ok = ok and s.state == Stalker.State.SEARCH
+
+	# 空き缶の音には、遠くても走って向かう
+	var can := Throwable.new()
+	var can_pos := NavigationServer3D.map_get_closest_point(map, s.global_position + Vector3(0, 0, -16))
+	Game.emit_noise(can_pos, Throwable.IMPACT_NOISE, can)
+	can.free()
+	await get_tree().create_timer(2.0).timeout
+	var spd := Vector2(s.velocity.x, s.velocity.z).length()
+	var anim: String = s._anim.current_animation if s._anim != null else "(none)"
+	print("SELFTEST can lure: %s, speed %.1f, anim %s" % [Stalker.State.keys()[s.state], spd, anim])
+	ok = ok and s.state == Stalker.State.SEARCH and spd > 3.0
 
 	# 正面に立つと見つかって追われる
 	var fwd := -s.global_transform.basis.z

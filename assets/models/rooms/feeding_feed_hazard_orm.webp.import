@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bhp6g2nfvx2xr"
-path="res://.godot/imported/feeding_feed_hazard_orm.webp-da89d363f50f707b49eace51638536f3.ctex"
+path.s3tc="res://.godot/imported/feeding_feed_hazard_orm.webp-da89d363f50f707b49eace51638536f3.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "4cb9b2663137f79be9d4a7a698908919"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/rooms/feeding_feed_hazard_orm.webp"
-dest_files=["res://.godot/imported/feeding_feed_hazard_orm.webp-da89d363f50f707b49eace51638536f3.ctex"]
+dest_files=["res://.godot/imported/feeding_feed_hazard_orm.webp-da89d363f50f707b49eace51638536f3.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

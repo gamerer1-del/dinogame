@@ -15,6 +15,9 @@ const CATCH_RANGE := 1.2
 const ALERT_TIME := 1.5           # 物音の方を向いて固まっている時間
 const SEARCH_TIME := 9.0          # 捜索を続ける時間
 const LOSE_SIGHT_TIME := 3.0      # 追跡中、これだけ見えなければ捜索に切り替える
+const LURE_SPEED := 4.2           # 空き缶の音には走って向かう
+const LURE_ALERT_TIME := 1.3      # 空き缶の音で吠え終わってから走り出す
+const LURE_SEARCH_TIME := 14.0    # 空き缶が落ちた場所を調べ続ける時間
 
 var waypoints: Array = []
 var state: int = State.PATROL
@@ -26,12 +29,13 @@ var _search_origin := Vector3.ZERO
 var _timer := 0.0
 var _search_left := 0.0
 var _lost_timer := 0.0
+var _lured := false               # 空き缶の音を調べに行っている
 var _delta := 0.0
 var _player: Player
 var _agent: NavigationAgent3D
 var _eye_mat: StandardMaterial3D
 var _dino: DinoModel
-var _walk_anim: AnimationPlayer
+var _anim: AnimationPlayer
 var _growl_timer := randf_range(3.0, 8.0)
 var _stride := 0.0
 const STRIDE_LENGTH := 1.1        # この距離ごとに足音が鳴る（メートル）
@@ -114,15 +118,15 @@ func _physics_process(delta: float) -> void:
 			elif _agent.is_navigation_finished():
 				# 着いたら首を振って辺りを見回し、近くの別の場所へ
 				_stop()
-				rotation.y += 1.4 * delta
 				_timer -= delta
 				if _timer <= 0.0:
-					_timer = 1.5
+					_timer = 3.0   # "look" の見回し1回ぶん
+					_lured = false
 					var off := Vector3(randf_range(-4.0, 4.0), 0.0, randf_range(-4.0, 4.0))
 					_target = NavigationServer3D.map_get_closest_point(_agent.get_navigation_map(), _search_origin + off)
 					_agent.target_position = _target
 			else:
-				_move_to(_target, SEARCH_SPEED)
+				_move_to(_target, LURE_SPEED if _lured else SEARCH_SPEED)
 
 		State.CHASE:
 			if sees:
@@ -147,10 +151,8 @@ func _physics_process(delta: float) -> void:
 
 func _animate(delta: float) -> void:
 	_play_sounds(delta)
-	if _walk_anim != null:
-		# 歩きの1サイクルで約1.2m進む。止まっているときは足を止める
-		var speed := Vector2(velocity.x, velocity.z).length()
-		_walk_anim.speed_scale = speed / WALK_ANIM_SPEED if speed > 0.1 else 0.0
+	if _anim != null:
+		_update_anim()
 	if _dino == null:
 		return
 	var mood := DinoModel.Mood.CALM
@@ -172,16 +174,21 @@ func _enter(new_state: int) -> void:
 		Sfx.play_at("screech", global_position + Vector3.UP, 4.0, 45.0)
 	match new_state:
 		State.ALERT:
-			_timer = ALERT_TIME
+			_timer = LURE_ALERT_TIME if _lured else ALERT_TIME
+			_play_once("roar")
 		State.SEARCH:
 			_search_origin = _target
-			_search_left = SEARCH_TIME
-			_timer = 1.5
+			_search_left = LURE_SEARCH_TIME if _lured else SEARCH_TIME
+			_timer = 3.0
 			_agent.target_position = _target
+		State.PATROL:
+			_lured = false
 		State.CHASE:
+			_lured = false
 			_lost_timer = 0.0
 			awareness = 100.0
 		State.CATCH:
+			_play_once("attack")
 			Game.player_caught()
 	_set_eye_color()
 
@@ -203,7 +210,7 @@ func _play_sounds(delta: float) -> void:
 
 
 ## 物音を聞いたとき。届く範囲内なら、その方向を警戒してから調べに行く。
-func _on_noise(pos: Vector3, radius: float, _source) -> void:
+func _on_noise(pos: Vector3, radius: float, source) -> void:
 	if state == State.CHASE or state == State.CATCH or Game.state != Game.State.PLAY:
 		return
 	if _agent == null or NavigationServer3D.map_get_iteration_id(_agent.get_navigation_map()) == 0:
@@ -215,6 +222,8 @@ func _on_noise(pos: Vector3, radius: float, _source) -> void:
 	var strength := 1.0 - d / hear
 	awareness = maxf(awareness, 30.0 + 40.0 * strength)
 	_target = NavigationServer3D.map_get_closest_point(_agent.get_navigation_map(), pos)
+	# 空き缶の音には強く反応する: 吠えてすぐ走って向かい、長く調べる
+	_lured = source is Throwable
 	_enter(State.ALERT)
 
 
@@ -282,9 +291,43 @@ func _set_eye_color() -> void:
 
 ## Blenderで作った恐竜のモデル。あれば箱の仮モデルの代わりに使う。
 ## 頭が -Z（Blenderでは +Y）向き、足元が原点、全長約2.3m・頭の高さ約1.4mが目安。
-## "walk" という名前のアニメーションがあれば再生する。
+## アニメーション（tools/blender/stalker.py）: idle walk run look は繰り返し、roar attack は1回。
 const MODEL_PATH := "res://assets/models/stalker.glb"
 const WALK_ANIM_SPEED := 1.2   # "walk" を速さ1で再生したときに進む速さ（m/秒）
+const RUN_ANIM_SPEED := 4.8    # "run" を速さ1で再生したときに進む速さ（m/秒）
+const LOOPS := ["idle", "walk", "run", "look"]
+
+
+## 今の状態と速さに合う動きを選ぶ。吠える・噛みつく間はそれが終わるまで待つ。
+func _update_anim() -> void:
+	if _anim.current_animation in ["roar", "attack"] and _anim.is_playing() and state != State.CHASE:
+		return   # 吠えている途中に見つけたら、すぐ走り出す
+	if state == State.CATCH:
+		return
+	var speed := Vector2(velocity.x, velocity.z).length()
+	if speed > 3.0:
+		_loop("run", speed / RUN_ANIM_SPEED)
+	elif speed > 0.1:
+		_loop("walk", speed / WALK_ANIM_SPEED)
+	elif state == State.SEARCH or state == State.ALERT:
+		_loop("look", 1.0)
+	else:
+		_loop("idle", 1.0)
+
+
+func _loop(anim_name: String, speed_scale: float) -> void:
+	if not _anim.has_animation(anim_name):
+		return
+	if _anim.current_animation != anim_name:
+		_anim.play(anim_name, 0.25)
+	_anim.speed_scale = clampf(speed_scale, 0.5, 2.0)
+
+
+func _play_once(anim_name: String) -> void:
+	if _anim == null or not _anim.has_animation(anim_name):
+		return
+	_anim.speed_scale = 1.0
+	_anim.play(anim_name, 0.15)
 
 
 ## 仮モデル（scripts/dino_model.gd）。頭は -Z（前）向き。
@@ -294,11 +337,12 @@ func _build_model() -> void:
 		if scene != null:
 			var model := scene.instantiate()
 			add_child(model)
-			var anim := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
-			if anim != null and anim.has_animation("walk"):
-				anim.get_animation("walk").loop_mode = Animation.LOOP_LINEAR
-				anim.play("walk")
-				_walk_anim = anim
+			_anim = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if _anim != null:
+				for a in LOOPS:
+					if _anim.has_animation(a):
+						_anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+				_loop("idle", 1.0)
 			return
 	_eye_mat = StandardMaterial3D.new()
 	_eye_mat.emission_enabled = true

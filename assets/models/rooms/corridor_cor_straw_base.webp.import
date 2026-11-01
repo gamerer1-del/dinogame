@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://buvkjy41xu1kc"
-path="res://.godot/imported/corridor_cor_straw_base.webp-bf07d0149ce5268cf31d20a061f53ca0.ctex"
+path.s3tc="res://.godot/imported/corridor_cor_straw_base.webp-bf07d0149ce5268cf31d20a061f53ca0.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "b498467535971c4cbd3752db3c9181e5"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/rooms/corridor_cor_straw_base.webp"
-dest_files=["res://.godot/imported/corridor_cor_straw_base.webp-bf07d0149ce5268cf31d20a061f53ca0.ctex"]
+dest_files=["res://.godot/imported/corridor_cor_straw_base.webp-bf07d0149ce5268cf31d20a061f53ca0.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

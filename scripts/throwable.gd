@@ -2,7 +2,7 @@ class_name Throwable
 extends RigidBody3D
 ## 空き缶。拾って投げると、ぶつかった場所で物音が鳴り、恐竜の注意をそらせる。
 
-const IMPACT_NOISE := 12.0
+const IMPACT_NOISE := 22.0         # 空き缶が落ちた音の届く距離（足音の全力疾走 14m より遠くまで）
 
 var _armed := false
 var _flight_time := 0.0

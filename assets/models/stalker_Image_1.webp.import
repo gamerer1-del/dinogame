@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cwpcdnn8s1gty"
-path="res://.godot/imported/stalker_Image_1.webp-7de989d2c4eeeed76d27af1f69dc3f1e.ctex"
+path.s3tc="res://.godot/imported/stalker_Image_1.webp-7de989d2c4eeeed76d27af1f69dc3f1e.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "2830e800fca2e6d48bded3afae4319b5"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/stalker_Image_1.webp"
-dest_files=["res://.godot/imported/stalker_Image_1.webp-7de989d2c4eeeed76d27af1f69dc3f1e.ctex"]
+dest_files=["res://.godot/imported/stalker_Image_1.webp-7de989d2c4eeeed76d27af1f69dc3f1e.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bfsqn4kaq4iln"
-path="res://.godot/imported/observation_obs_floor_base.webp-017f5e998393750cf82da6777c8df0b5.ctex"
+path.s3tc="res://.godot/imported/observation_obs_floor_base.webp-017f5e998393750cf82da6777c8df0b5.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "5770b68c39e919b434a1c2e0efd21e17"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/rooms/observation_obs_floor_base.webp"
-dest_files=["res://.godot/imported/observation_obs_floor_base.webp-017f5e998393750cf82da6777c8df0b5.ctex"]
+dest_files=["res://.godot/imported/observation_obs_floor_base.webp-017f5e998393750cf82da6777c8df0b5.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -3,9 +3,10 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dc6gpv0x5gkxe"
-path="res://.godot/imported/corridor_cor_rust_orm.webp-dfef39231c42baa243690a79492a9b43.ctex"
+path.s3tc="res://.godot/imported/corridor_cor_rust_orm.webp-dfef39231c42baa243690a79492a9b43.s3tc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e3f7ea6fa82eddb3d8e75ff46300d454"
@@ -14,11 +15,11 @@ generator_parameters={
 [deps]
 
 source_file="res://assets/models/rooms/corridor_cor_rust_orm.webp"
-dest_files=["res://.godot/imported/corridor_cor_rust_orm.webp-dfef39231c42baa243690a79492a9b43.ctex"]
+dest_files=["res://.godot/imported/corridor_cor_rust_orm.webp-dfef39231c42baa243690a79492a9b43.s3tc.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +41,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
