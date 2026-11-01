@@ -44,6 +44,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if player == null:
 		return
+	visible = Game.state != Game.State.INTRO   # 映像の間は画面表示を隠す
 
 	var bars := int(round(clampf(player.noise_level / Player.NOISE_SPRINT, 0.0, 1.0) * 10.0))
 	_status.text = "足音　%s\n空き缶　%d\nカードキー　%s\n懐中電灯（F）　%s" % [
@@ -86,7 +87,7 @@ func _process(delta: float) -> void:
 			_center.text = "捕まった……"
 		Game.State.CLEAR:
 			fade_to = 0.75
-			_center.text = "脱出成功！\n体験版プロトタイプはここまで\n\nRキーで最初から"
+			_center.text = "B5 脱出成功\n\n無線『ハル、よくやった。だが……S-07だけじゃない。\nB4の遺伝子ラボにも、何かが——』\n\n体験版はここまで　Rキーで最初から"
 		_:
 			_center.text = ""
 	_fade.color.a = move_toward(_fade.color.a, fade_to, delta * 1.5)

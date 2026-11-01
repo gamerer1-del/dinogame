@@ -4,7 +4,8 @@ extends Node
 ##   Sfx.play("pickup")            … 画面全体に聞こえる音
 
 const DIR := "res://assets/sounds/"
-const NAMES := ["step", "step_wet", "locker", "can", "pickup", "door", "heartbeat", "caught",
+const NAMES := ["step", "step_wet", "locker", "can", "pickup", "door", "heartbeat", "caught", "thunder", "alarm",
+		"bang", "break", "slam",
 		"elevator", "dino_step", "growl", "snort", "screech", "ambience"]
 
 var _streams := {}

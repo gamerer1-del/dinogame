@@ -15,7 +15,8 @@ const CATCH_RANGE := 1.2
 const ALERT_TIME := 1.5           # 物音の方を向いて固まっている時間
 const SEARCH_TIME := 9.0          # 捜索を続ける時間
 const LOSE_SIGHT_TIME := 3.0      # 追跡中、これだけ見えなければ捜索に切り替える
-const LURE_SPEED := 4.2           # 空き缶の音には走って向かう
+const DOOR_HIT_INTERVAL := 1.2    # 閉まった扉への体当たりの間隔
+const LURE_SPEED := 4.2          # 空き缶の音には走って向かう
 const LURE_ALERT_TIME := 1.3      # 空き缶の音で吠え終わってから走り出す
 const LURE_SEARCH_TIME := 14.0    # 空き缶が落ちた場所を調べ続ける時間
 
@@ -30,6 +31,9 @@ var _timer := 0.0
 var _search_left := 0.0
 var _lost_timer := 0.0
 var _lured := false               # 空き缶の音を調べに行っている
+var _wp_dir := 1                  # 見回りの向き（閉まった扉に当たると逆回りになる）
+var _door_cooldown := 0.0
+var _door_timer := 0.0
 var _delta := 0.0
 var _player: Player
 var _agent: NavigationAgent3D
@@ -89,11 +93,27 @@ func _physics_process(delta: float) -> void:
 		awareness -= delta * 8.0
 	awareness = clampf(awareness, 0.0, 100.0)
 
+	# 閉まった扉の前: 追っているときは体当たりで壊しにかかる。見回り中は引き返す
+	_door_cooldown -= delta
+	var door := _blocking_door()
+	if door != null:
+		if state == State.CHASE:
+			_attack_door(door, delta)
+			move_and_slide()
+			_animate(delta)
+			return
+		elif _door_cooldown <= 0.0:
+			_door_cooldown = 3.0
+			if state == State.SEARCH:
+				_search_left = 0.0
+			_wp_dir = -_wp_dir
+			_wp = posmod(_wp + _wp_dir, waypoints.size())
+
 	match state:
 		State.PATROL:
 			_move_to(waypoints[_wp], PATROL_SPEED)
 			if _agent.is_navigation_finished():
-				_wp = (_wp + 1) % waypoints.size()
+				_wp = posmod(_wp + _wp_dir, waypoints.size())
 			if sees and awareness >= 100.0:
 				_enter(State.CHASE)
 			elif sees and awareness >= 30.0:
@@ -263,6 +283,37 @@ func _move_to(pos: Vector3, speed: float) -> void:
 		velocity.x = dir.x * speed
 		velocity.z = dir.z * speed
 		_face(dir)
+
+
+## 進む先をふさいでいる閉まった扉（BarricadeDoor）。なければ null。
+func _blocking_door() -> Node3D:
+	var fwd := -global_transform.basis.z
+	for d in get_tree().get_nodes_in_group("barricade"):
+		if not d.is_closed:
+			continue
+		var to: Vector3 = d.global_position - global_position
+		to.y = 0.0
+		if to.length() < 1.7 and fwd.dot(to.normalized()) > 0.2:
+			return d
+	return null
+
+
+## 扉に体当たりする。主人公が近くにいる間は追跡をやめない。
+func _attack_door(door: Node3D, delta: float) -> void:
+	_stop()
+	_face(door.global_position - global_position)
+	if _player != null and global_position.distance_to(_player.global_position) < 14.0:
+		_lost_timer = 0.0
+	else:
+		_lost_timer += delta
+		if _lost_timer > LOSE_SIGHT_TIME:
+			_enter(State.SEARCH)
+			return
+	_door_timer -= delta
+	if _door_timer <= 0.0:
+		_door_timer = DOOR_HIT_INTERVAL
+		_play_once("attack")
+		door.hit()
 
 
 func _stop() -> void:

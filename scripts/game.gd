@@ -5,15 +5,19 @@ extends Node
 signal noise_emitted(pos: Vector3, radius: float, source)
 signal hint_requested(text: String)
 signal state_changed(state: int)
+signal power_restored
 
-enum State { PLAY, CAUGHT, CLEAR }
+enum State { PLAY, CAUGHT, CLEAR, INTRO }   # INTRO = プロローグや説明の映像中（操作できない）
 
-## チェックポイント: 0 = 観察室、1 = 飼育通路の入口、2 = 給餌室の入口
-const CHECKPOINTS := [Vector3(0, 0.1, -2), Vector3(-1.2, 0.1, -9.5), Vector3(0, 0.1, -39.5)]
+## チェックポイント: 0 = 観察室、1 = 飼育通路の入口、2 = 給餌室の入口、3 = 整備通路の入口、4 = 監視室の前
+const CHECKPOINTS := [Vector3(0, 0.1, -2), Vector3(-1.2, 0.1, -9.5), Vector3(0, 0.1, -39.5),
+		Vector3(0, 0.1, -56.5), Vector3(2.5, 0.1, -76.5)]
 
 var state: int = State.PLAY
 var checkpoint := 0
 var has_keycard := false
+var power_on := false            # 監視室で非常電源を入れたか（エレベーターが動く）
+var prologue_seen := false       # プロローグは最初の1回だけ流す
 ## 水たまりの範囲（XZ平面の Rect2）。踏むと足音が大きくなる。
 var puddles: Array = []
 
@@ -37,6 +41,13 @@ func is_in_puddle(pos: Vector3) -> bool:
 		if r.has_point(Vector2(pos.x, pos.z)):
 			return true
 	return false
+
+
+func restore_power() -> void:
+	if power_on:
+		return
+	power_on = true
+	power_restored.emit()
 
 
 func reach_checkpoint(index: int) -> void:
@@ -67,7 +78,8 @@ func clear_game() -> void:
 func restart(full := false) -> void:
 	if full:
 		checkpoint = 0
-	has_keycard = false
+	has_keycard = checkpoint >= 3   # カードキーの扉より先から再開するなら、もう使った後
+	power_on = false
 	puddles.clear()
 	state = State.PLAY
 	get_tree().reload_current_scene()
