@@ -280,6 +280,26 @@ def world_uv(ob, scale=2.0, wall_height=H):
             uv[li].uv = (u, v)
 
 
+def fit_uv(ob):
+    """UV を 0..1 に広げる（モニターの画面など、1枚の絵を貼る物用）。"""
+    me = ob.data
+    uv = me.uv_layers.active.data
+    us = [uv[i].uv.x for p in me.polygons for i in p.loop_indices]
+    vs = [uv[i].uv.y for p in me.polygons for i in p.loop_indices]
+    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
+    for p in me.polygons:
+        for i in p.loop_indices:
+            uv[i].uv = ((uv[i].uv.x - u0) / max(u1 - u0, 1e-6), (uv[i].uv.y - v0) / max(v1 - v0, 1e-6))
+
+
+def quad_uv(ob, i):
+    """2×2 に並べた画像のうち i 番目の1枚を使う（書類など）。"""
+    qx, qy = (i % 2) * 0.5, ((i // 2) % 2) * 0.5
+    uv = ob.data.uv_layers.active.data
+    for l in uv:
+        l.uv = (qx + l.uv.x * 0.5, qy + l.uv.y * 0.5)
+
+
 def assign_faces(ob, mat_index, pred):
     """pred(ワールド法線, ワールド中心) が真の面に mat_index のマテリアルを割り当てる。"""
     mw = ob.matrix_world
@@ -353,6 +373,42 @@ def bake_transforms(col):
             continue
         ob.data.transform(ob.matrix_world)
         ob.matrix_world.identity()
+
+
+def text(col, s, loc, size, mat, rot=(math.radians(90), 0, 0)):
+    """文字をメッシュにして置く（既定は -Y 側から読める向き）。"""
+    cu = bpy.data.curves.new("Text", "FONT")
+    cu.body = s
+    cu.size = size
+    cu.align_x = "CENTER"
+    cu.align_y = "CENTER"
+    cu.extrude = 0.002
+    ob = bpy.data.objects.new("Text", cu)
+    col.objects.link(ob)
+    ob.location = loc
+    ob.rotation_euler = rot
+    bpy.context.view_layer.update()
+    dg = bpy.context.evaluated_depsgraph_get()
+    me = bpy.data.meshes.new_from_object(ob.evaluated_get(dg))
+    mo = bpy.data.objects.new("Text_Mesh", me)
+    col.objects.link(mo)
+    mo.matrix_world = ob.matrix_world
+    me.materials.clear()
+    me.materials.append(mat)
+    bpy.data.objects.remove(ob, do_unlink=True)
+    return mo
+
+
+def finish(col, name):
+    """親子を外して位置を焼き込み、1つのメッシュにまとめる。"""
+    bpy.context.view_layer.update()
+    for ob in col.objects:
+        if ob.parent is not None:
+            mw = ob.matrix_world.copy()
+            ob.parent = None
+            ob.matrix_world = mw
+    bake_transforms(col)
+    return join_all(col, name)
 
 
 def join_all(col, name):

@@ -330,6 +330,8 @@ func _puddle(r: Rect2) -> void:
 	mi.mesh = pm
 	mi.material_override = m_puddle
 	mi.position = Vector3(r.position.x + r.size.x / 2.0, 0.01, r.position.y + r.size.y / 2.0)
+	if _room != "":
+		mi.add_to_group("box_visual_" + _room)   # Blenderの部屋モデルに水たまりが描いてあれば隠す
 	outside.add_child(mi)
 
 

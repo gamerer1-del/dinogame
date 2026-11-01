@@ -131,6 +131,97 @@ def lab_floor(name="floor_new", seed=30, wet=1.0):
     return textured_material(name, base, orm, nrm, 1.0)
 
 
+def concrete_floor(name="floor_old", seed=35, wet=1.0):
+    """旧棟の床。打ちっぱなしのコンクリートにひび、泥、水の流れた跡。"""
+    n = TEX
+    big = noise(n, 2.5, seed)
+    mid = noise(n, 1.6, seed + 1)
+    fine = noise(n, 0.8, seed + 2)
+    joints = np.maximum(lines_mask(n, [0.0], 0.003, 0), lines_mask(n, [0.0, 1.0], 0.003, 1))
+    crack = np.clip(1 - np.abs(noise(n, 2.0, seed + 3) - 0.5) * 60, 0, 1) * np.clip((mid - 0.45) * 4, 0, 1)
+
+    col = np.zeros((n, n, 3)) + np.array([0.27, 0.26, 0.24])[None, None, :]
+    col *= (0.8 + 0.3 * mid + 0.1 * fine)[..., None]
+    mud = np.clip((big - 0.5) * 2.5, 0, 1)
+    col = mix(col, (0.10, 0.08, 0.05), mud * 0.8)
+    water = np.clip((noise(n, 2.2, seed + 4) - (0.6 - 0.15 * wet)) * 5, 0, 1) * wet
+    col = mix(col, (0.06, 0.06, 0.055), water * 0.45)
+    col = mix(col, (0.05, 0.05, 0.045), np.maximum(joints, crack) * 0.8)
+
+    rough = 0.85 - 0.6 * water + 0.05 * fine
+    height = mid * 0.2 + fine * 0.2 - joints - crack * 0.8
+    base = save_image(name + "_base", col)
+    orm = save_image(name + "_orm", _orm(rough, np.zeros_like(rough)), non_color=True)
+    nrm = save_image(name + "_nrm", normal_from_height(height, 4.0), non_color=True)
+    return textured_material(name, base, orm, nrm, 1.0)
+
+
+def straw(name="straw", seed=90):
+    """ケージの床に散らばった藁。細い線をたくさん重ねた透過付きの絵。"""
+    n = TEX // 2
+    rng = np.random.default_rng(seed)
+    a = np.zeros((n, n))
+    col = np.zeros((n, n, 3))
+    yy, xx = np.mgrid[0:n, 0:n]
+    for _ in range(900):
+        x0, y0 = rng.random(2) * n
+        ang = rng.random() * np.pi
+        ln = rng.uniform(20, 70)
+        c = np.array([0.55, 0.45, 0.22]) * rng.uniform(0.45, 1.0)
+        for t in np.linspace(0, 1, int(ln)):
+            x = int(x0 + np.cos(ang) * ln * t) % n
+            y = int(y0 + np.sin(ang) * ln * t) % n
+            a[y, x] = 1
+            col[y, x] = c
+            a[y, (x + 1) % n] = 1
+            col[y, (x + 1) % n] = c * 0.8
+    # 中央に集まり、縁へ向かって少なくなる
+    r = np.sqrt(((xx + 0.5) / n - 0.5) ** 2 + ((yy + 0.5) / n - 0.5) ** 2) * 2
+    a *= smoothstep(1.0, 0.6, r + noise(n, 2.0, seed + 1) * 0.4 - 0.2)
+    base = save_image(name + "_base", np.dstack([col, a]))
+    m = textured_material(name, base, alpha_from_base=True)
+    bsdf = next(nd for nd in m.node_tree.nodes if nd.type == "BSDF_PRINCIPLED")
+    bsdf.inputs["Roughness"].default_value = 0.9
+    return m
+
+
+def wood(name="wood", seed=95):
+    """木箱の板。木目と、湿って黒ずんだ下側。uv は 1m で1周。"""
+    n = TEX // 2
+    yy, xx = np.mgrid[0:n, 0:n]
+    grain = noise(n, 1.0, seed, n)
+    warp = noise(n, 2.4, seed + 1)
+    rings = 0.5 + 0.5 * np.sin((yy / n * 40 + warp * 6) * np.pi)
+    boards = lines_mask(n, [0.0, 0.25, 0.5, 0.75], 0.004, 1)
+    col = np.zeros((n, n, 3)) + np.array([0.36, 0.25, 0.14])[None, None, :]
+    col *= (0.75 + 0.2 * rings + 0.15 * grain)[..., None]
+    col = mix(col, (0.08, 0.06, 0.04), boards * 0.9)
+    col = mix(col, (0.12, 0.10, 0.07), np.clip((noise(n, 2.2, seed + 2) - 0.55) * 3, 0, 0.8))
+    rough = 0.8 + 0.1 * grain
+    height = rings * 0.2 - boards
+    base = save_image(name + "_base", col)
+    orm = save_image(name + "_orm", _orm(rough, np.zeros_like(rough)), non_color=True)
+    nrm = save_image(name + "_nrm", normal_from_height(height, 3.0), non_color=True)
+    return textured_material(name, base, orm, nrm, 1.0)
+
+
+def rust_metal(name="rust", seed=97):
+    """錆びた鉄（格子や配管用）。uv は 1m で1周。"""
+    n = TEX // 2
+    big = noise(n, 2.2, seed)
+    fine = noise(n, 0.7, seed + 1)
+    flakes = np.clip((noise(n, 1.2, seed + 2) - 0.5) * 4, 0, 1)
+    col = np.zeros((n, n, 3)) + np.array([0.20, 0.19, 0.18])[None, None, :]
+    col = mix(col, (0.30, 0.13, 0.05), np.clip(big * 0.8 + flakes * 0.5, 0, 1))
+    col = mix(col, (0.12, 0.06, 0.03), np.clip((fine - 0.6) * 3, 0, 0.6))
+    rough = 0.6 + 0.35 * flakes
+    metal = 0.8 - 0.7 * flakes
+    base = save_image(name + "_base", col)
+    orm = save_image(name + "_orm", _orm(rough, metal), non_color=True)
+    nrm = save_image(name + "_nrm", normal_from_height(fine * 0.5 + flakes * 0.5, 3.0), non_color=True)
+    return textured_material(name, base, orm, nrm, 1.0)
+
+
 def puddle(name="puddle", seed=40):
     """水たまり。縁が透けて薄くなる、ほぼ鏡のような面。"""
     n = TEX // 2
@@ -138,9 +229,10 @@ def puddle(name="puddle", seed=40):
     r = np.sqrt(((xx + 0.5) / n - 0.5) ** 2 + ((yy + 0.5) / n - 0.5) ** 2) * 2
     wobble = noise(n, 2.0, seed) * 0.35
     a = smoothstep(1.0, 0.55, r + wobble - 0.1)
-    col = np.dstack([np.full((n, n), 0.03), np.full((n, n), 0.035), np.full((n, n), 0.035), a * 0.85])
+    col = np.dstack([np.full((n, n), 0.03), np.full((n, n), 0.035), np.full((n, n), 0.035), a])
     base = save_image(name + "_base", col)
-    m = textured_material(name, base, alpha_from_base=True, blend=True)
+    # 半透明（BLEND）は Godot で黒い四角になったので、輪郭で切り抜く（MASK）
+    m = textured_material(name, base, alpha_from_base=True, blend=False)
     bsdf = next(nd for nd in m.node_tree.nodes if nd.type == "BSDF_PRINCIPLED")
     bsdf.inputs["Roughness"].default_value = 0.03
     return m

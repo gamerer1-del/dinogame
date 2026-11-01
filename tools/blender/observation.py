@@ -12,8 +12,8 @@ import numpy as np
 from mathutils import Vector
 
 import textures as tx
-from common import (H, T, assign_faces, bake_transforms, box, collection, cylinder, export_glb,
-                    floor, join_all, material, plane, wall_x, wall_y, world_uv)
+from common import (H, T, assign_faces, box, collection, cylinder, export_glb, finish, fit_uv, floor,
+                    material, plane, quad_uv, text, wall_x, wall_y, world_uv)
 
 ROOM = "observation"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "assets", "models", "rooms",
@@ -191,7 +191,7 @@ def build():
     # スクリーンの UV を 0..1 に合わせ直す
     for ob in col.objects:
         if ob.name.startswith(("Console_Monitor_Screen", "Desk_Monitor_Screen")):
-            _fit_uv(ob)
+            fit_uv(ob)
 
     # --- 倒れた椅子（西の壁際、通り道の外） ---------------------------------------------------------
     ch = box(col, "Chair_Seat", -0.25, 0.25, -0.25, 0.25, 0.42, 0.48, m_chair)
@@ -210,9 +210,9 @@ def build():
         z = 1.75 if i < 3 else 1.3
         p = plane(col, "Board_Paper", x + 0.25, 0.185, z + 0.18, 0.4, 0.3, m_paper,
                   rot=(math.radians(90), 0, math.radians(180) + rng.normal(0, 0.08)))
-        _paper_uv(p, i)
+        quad_uv(p, i)
     box(col, "Sign", 2.2, 3.4, 7.83, 7.85, 2.45, 2.75, m_sign)
-    _text(col, "OBSERVATION  B2-01", (2.8, 7.825, 2.6), 0.11, m_sign_txt)
+    text(col, "OBSERVATION  B2-01", (2.8, 7.825, 2.6), 0.11, m_sign_txt)
     # 救急箱（白い箱に赤い十字。光らせない）
     m_cross = material("obs_red_paint", (0.45, 0.04, 0.03), rough=0.6)
     box(col, "FirstAid", -4.85, -4.75, 5.2, 5.7, 1.4, 1.85, m_sign)
@@ -231,7 +231,7 @@ def build():
             continue
         p = plane(col, "Floor_Paper", x, y, 0.008 + i * 0.0002, 0.21, 0.297, m_paper,
                   rot=(rng.normal(0, 0.01), rng.normal(0, 0.01), rng.random() * math.tau))
-        _paper_uv(p, i)
+        quad_uv(p, i)
     # 爪痕: 東の壁、机の側面、南の壁の掲示板の横
     plane(col, "Claw_E", 4.845, 3.1, 1.45, 0.9, 1.1, m_claw, rot=(math.radians(90), 0, math.radians(-90)))
     plane(col, "Claw_E2", 4.845, 4.4, 0.85, 0.6, 0.8, m_claw, rot=(math.radians(90), math.radians(20), math.radians(-90)))
@@ -241,61 +241,8 @@ def build():
     plane(col, "Puddle", -0.5, 6.9, 0.004, 2.2, 1.6, m_puddle, rot=(0, 0, math.radians(8)))
     plane(col, "Puddle_Small", -3.9, 6.6, 0.004, 0.9, 0.7, m_puddle, rot=(0, 0, math.radians(-30)))
 
-    _parent_clear(col)
-    join_all(col, "Room_" + ROOM)
+    finish(col, "Room_" + ROOM)
     return col
-
-
-def _fit_uv(ob):
-    """前を向いた面の UV を 0..1 に広げる（モニターの画面用）。"""
-    me = ob.data
-    uv = me.uv_layers.active.data
-    us = [uv[i].uv.x for p in me.polygons for i in p.loop_indices]
-    vs = [uv[i].uv.y for p in me.polygons for i in p.loop_indices]
-    u0, u1, v0, v1 = min(us), max(us), min(vs), max(vs)
-    for p in me.polygons:
-        for i in p.loop_indices:
-            uv[i].uv = ((uv[i].uv.x - u0) / max(u1 - u0, 1e-6), (uv[i].uv.y - v0) / max(v1 - v0, 1e-6))
-
-
-def _paper_uv(ob, i):
-    """書類の画像（2×2）のどれか1枚を使う。"""
-    qx, qy = (i % 2) * 0.5, ((i // 2) % 2) * 0.5
-    uv = ob.data.uv_layers.active.data
-    for l in uv:
-        l.uv = (qx + l.uv.x * 0.5, qy + l.uv.y * 0.5)
-
-
-def _text(col, s, loc, size, mat):
-    cu = bpy.data.curves.new("SignText", "FONT")
-    cu.body = s
-    cu.size = size
-    cu.align_x = "CENTER"
-    cu.align_y = "CENTER"
-    cu.extrude = 0.002
-    ob = bpy.data.objects.new("SignText", cu)
-    col.objects.link(ob)
-    ob.location = loc
-    ob.rotation_euler = (math.radians(90), 0, 0)
-    dg = bpy.context.evaluated_depsgraph_get()
-    me = bpy.data.meshes.new_from_object(ob.evaluated_get(dg))
-    mo = bpy.data.objects.new("Sign_Text", me)
-    col.objects.link(mo)
-    mo.matrix_world = ob.matrix_world
-    me.materials.clear()
-    me.materials.append(mat)
-    bpy.data.objects.remove(ob, do_unlink=True)
-    return mo
-
-
-def _parent_clear(col):
-    bpy.context.view_layer.update()
-    for ob in col.objects:
-        if ob.parent is not None:
-            mw = ob.matrix_world.copy()
-            ob.parent = None
-            ob.matrix_world = mw
-    bake_transforms(col)
 
 
 def export():
