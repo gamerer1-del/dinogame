@@ -1,0 +1,24 @@
+; Engine configuration file.
+; Godot 4.3 以降で開いてください。
+
+config_version=5
+
+[application]
+
+config/name="Lab Exodus (Prototype)"
+config/description="停電した研究所から、逃げ出した恐竜を避けて脱出する三人称ステルスゲームの試作品"
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+
+[autoload]
+
+Game="*res://scripts/game.gd"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[physics]
+
+common/physics_ticks_per_second=60
