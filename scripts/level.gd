@@ -26,6 +26,13 @@ var outside: Node3D           # ナビメッシュに含めない物（天井、
 var player: Player
 var hud: Hud
 var _hint_stage := 0
+var _room := ""               # いま組み立て中の部屋（Blenderモデルとの差し替え用の目印）
+
+## Blenderで作った部屋のモデル（.glb）を置く場所。
+## ここに observation.glb などがあれば、その部屋の箱の見た目を隠してモデルを表示する。
+## 当たり判定と恐竜の通れる道は箱のまま使う。作り方は docs/blender-guide.md を参照。
+const ROOM_MODEL_DIR := "res://assets/models/rooms/"
+const ROOMS := ["observation", "corridor", "feeding", "exit"]
 
 var m_concrete: StandardMaterial3D
 var m_panel: StandardMaterial3D
@@ -53,12 +60,18 @@ func _ready() -> void:
 	outside = Node3D.new()
 	add_child(outside)
 
+	_room = "observation"
 	_build_observation_room()
+	_room = "corridor"
 	_build_corridor()
+	_room = "feeding"
 	_build_feeding_room()
+	_room = "exit"
 	_build_exit()
+	_room = ""
 	_box(outside, Vector3(0, H + 0.15, -30), Vector3(20, 0.3, 64), m_ceiling)
 	nav.bake_navigation_mesh(false)
+	_apply_room_models()
 
 	_spawn_player()
 	_spawn_stalkers()
@@ -239,6 +252,25 @@ func _spawn_items() -> void:
 	add_child(card)
 
 
+## Blenderの部屋モデルがあれば読み込み、その部屋の箱の見た目を隠す。
+## Blenderの原点とゲームの原点は同じ位置（座標の対応は docs/blender-guide.md）。
+func _apply_room_models() -> void:
+	for room in ROOMS:
+		var path: String = ROOM_MODEL_DIR + room + ".glb"
+		if not ResourceLoader.exists(path):
+			continue
+		var scene := load(path) as PackedScene
+		if scene == null:
+			push_warning("部屋モデルを読み込めませんでした: " + path)
+			continue
+		var model := scene.instantiate()
+		model.name = "Model_" + room
+		add_child(model)
+		for n in get_tree().get_nodes_in_group("box_visual_" + room):
+			n.visible = false
+		print("部屋モデルを使用: ", path)
+
+
 # --- 部品づくり -------------------------------------------------------------------
 
 func _box(parent: Node, center: Vector3, size: Vector3, mat: Material, collide := true) -> Node3D:
@@ -247,6 +279,8 @@ func _box(parent: Node, center: Vector3, size: Vector3, mat: Material, collide :
 	bm.size = size
 	mi.mesh = bm
 	mi.material_override = mat
+	if _room != "":
+		mi.add_to_group("box_visual_" + _room)
 	if not collide:
 		mi.position = center
 		parent.add_child(mi)

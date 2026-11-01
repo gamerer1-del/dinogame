@@ -235,8 +235,24 @@ func _set_eye_color() -> void:
 	_eye_mat.emission = c
 
 
+## Blenderで作った恐竜のモデル。あれば箱の仮モデルの代わりに使う。
+## 頭が -Z（Blenderでは +Y）向き、足元が原点、全長約2.3m・頭の高さ約1.4mが目安。
+## "walk" という名前のアニメーションがあれば再生する。
+const MODEL_PATH := "res://assets/models/stalker.glb"
+
+
 ## 仮モデル: 箱を組み合わせた二足歩行の恐竜。頭は -Z（前）向き。
 func _build_model() -> void:
+	if ResourceLoader.exists(MODEL_PATH):
+		var scene := load(MODEL_PATH) as PackedScene
+		if scene != null:
+			var model := scene.instantiate()
+			add_child(model)
+			var anim := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if anim != null and anim.has_animation("walk"):
+				anim.get_animation("walk").loop_mode = Animation.LOOP_LINEAR
+				anim.play("walk")
+			return
 	var skin := StandardMaterial3D.new()
 	skin.albedo_color = Color(0.22, 0.26, 0.18)
 	skin.roughness = 0.7
