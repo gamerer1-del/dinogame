@@ -31,6 +31,7 @@ var _player: Player
 var _agent: NavigationAgent3D
 var _eye_mat: StandardMaterial3D
 var _dino: DinoModel
+var _walk_anim: AnimationPlayer
 var _growl_timer := randf_range(3.0, 8.0)
 var _stride := 0.0
 const STRIDE_LENGTH := 1.1        # この距離ごとに足音が鳴る（メートル）
@@ -146,6 +147,10 @@ func _physics_process(delta: float) -> void:
 
 func _animate(delta: float) -> void:
 	_play_sounds(delta)
+	if _walk_anim != null:
+		# 歩きの1サイクルで約1.2m進む。止まっているときは足を止める
+		var speed := Vector2(velocity.x, velocity.z).length()
+		_walk_anim.speed_scale = speed / WALK_ANIM_SPEED if speed > 0.1 else 0.0
 	if _dino == null:
 		return
 	var mood := DinoModel.Mood.CALM
@@ -279,6 +284,7 @@ func _set_eye_color() -> void:
 ## 頭が -Z（Blenderでは +Y）向き、足元が原点、全長約2.3m・頭の高さ約1.4mが目安。
 ## "walk" という名前のアニメーションがあれば再生する。
 const MODEL_PATH := "res://assets/models/stalker.glb"
+const WALK_ANIM_SPEED := 1.2   # "walk" を速さ1で再生したときに進む速さ（m/秒）
 
 
 ## 仮モデル（scripts/dino_model.gd）。頭は -Z（前）向き。
@@ -292,6 +298,7 @@ func _build_model() -> void:
 			if anim != null and anim.has_animation("walk"):
 				anim.get_animation("walk").loop_mode = Animation.LOOP_LINEAR
 				anim.play("walk")
+				_walk_anim = anim
 			return
 	_eye_mat = StandardMaterial3D.new()
 	_eye_mat.emission_enabled = true

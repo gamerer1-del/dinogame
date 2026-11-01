@@ -8,3 +8,4 @@ tools/blender/textures/
 tools/blender/*.blend
 tools/blender/*.blend1
 __pycache__/
+tools/blender/src/

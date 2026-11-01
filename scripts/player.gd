@@ -35,6 +35,7 @@ var _shape: CollisionShape3D
 var _capsule: CapsuleShape3D
 var _body_mesh: MeshInstance3D
 var _model: Node3D
+var _anim: AnimationPlayer
 var _yaw: Node3D
 var _pitch: Node3D
 var _arm: SpringArm3D
@@ -75,9 +76,17 @@ func _ready() -> void:
 	if ResourceLoader.exists(MODEL_PATH):
 		var scene := load(MODEL_PATH) as PackedScene
 		if scene != null:
-			_model.add_child(scene.instantiate())
+			var body := scene.instantiate()
+			_model.add_child(body)
 			_body_mesh.visible = false
 			visor.visible = false
+			# "idle" "walk" "run" のアニメーションがあれば動きに合わせて切り替える
+			_anim = body.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if _anim != null:
+				for a in ["idle", "walk", "run"]:
+					if _anim.has_animation(a):
+						_anim.get_animation(a).loop_mode = Animation.LOOP_LINEAR
+				_play_anim("idle", 1.0)
 
 	# 三人称カメラ: yaw（左右）→ pitch（上下）→ SpringArm（壁にめり込まない）→ Camera
 	_yaw = Node3D.new()
@@ -136,6 +145,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		_flashlight.visible = not _flashlight.visible
 
 
+func _play_anim(anim_name: String, speed: float) -> void:
+	if _anim == null or not _anim.has_animation(anim_name):
+		return
+	if _anim.current_animation != anim_name:
+		_anim.play(anim_name, 0.2)
+	_anim.speed_scale = speed
+
+
 func _rotate_camera(dx: float, dy: float) -> void:
 	_yaw.rotate_y(dx)
 	_pitch.rotation.x = clamp(_pitch.rotation.x + dy, -1.2, 0.5)
@@ -172,6 +189,12 @@ func _physics_process(delta: float) -> void:
 	var flat := Vector2(velocity.x, velocity.z)
 	if flat.length() > 0.1:
 		_model.rotation.y = lerp_angle(_model.rotation.y, atan2(-flat.x, -flat.y), 12.0 * delta)
+	if flat.length() < 0.1:
+		_play_anim("idle", 1.0)
+	elif sprinting:
+		_play_anim("run", 1.0)
+	else:
+		_play_anim("walk", flat.length() / WALK_SPEED)
 
 	# 足音
 	if is_on_floor() and flat.length() > 0.1:
