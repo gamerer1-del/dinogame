@@ -58,6 +58,11 @@
 | `scripts/hud.gd` | 画面表示（足音メーター、気配、ヒント、フェード） |
 | `scripts/throwable.gd` ほか | 空き缶、隠れ場所、カードキー、扉、明滅する非常灯 |
 
+## 見た目の差し替え（Blender）
+
+Blender で作った `.glb` を `assets/models/` に置くと、箱の見た目が自動で差し替わります。
+寸法、座標、書き出し設定、Blender MCP への指示文は [docs/blender-guide.md](docs/blender-guide.md) にまとめています。
+
 ## 自動テスト
 
 画面なしで起動して、ナビメッシュの生成と恐竜の反応（巡回・物音で警戒・捜索・見つけて追跡）を確認できます。

@@ -18,6 +18,7 @@ const STAND_HEIGHT := 1.7
 const CROUCH_HEIGHT := 1.0
 const INTERACT_RANGE := 2.0
 const THROW_SPEED := 9.0
+const MODEL_PATH := "res://assets/models/player.glb"
 
 var ammo := 0
 var is_hidden := false
@@ -70,6 +71,13 @@ func _ready() -> void:
 	visor.position = Vector3(0, 1.5, -0.3)
 	visor.material_override = _mat(Color(0.1, 0.12, 0.15))
 	_model.add_child(visor)
+	# Blenderで作った主人公のモデルがあれば差し替える（足元が原点、-Z＝Blenderの+Y が正面）
+	if ResourceLoader.exists(MODEL_PATH):
+		var scene := load(MODEL_PATH) as PackedScene
+		if scene != null:
+			_model.add_child(scene.instantiate())
+			_body_mesh.visible = false
+			visor.visible = false
 
 	# 三人称カメラ: yaw（左右）→ pitch（上下）→ SpringArm（壁にめり込まない）→ Camera
 	_yaw = Node3D.new()
