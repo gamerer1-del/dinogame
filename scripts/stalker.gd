@@ -30,6 +30,7 @@ var _delta := 0.0
 var _player: Player
 var _agent: NavigationAgent3D
 var _eye_mat: StandardMaterial3D
+var _dino: DinoModel
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 
 
@@ -137,6 +138,20 @@ func _physics_process(delta: float) -> void:
 				_face(_player.global_position - global_position)
 
 	move_and_slide()
+	_animate(delta)
+
+
+func _animate(delta: float) -> void:
+	if _dino == null:
+		return
+	var mood := DinoModel.Mood.CALM
+	if state == State.ALERT:
+		mood = DinoModel.Mood.ALERT
+	elif state == State.SEARCH:
+		mood = DinoModel.Mood.SEARCH
+	elif state == State.CHASE or state == State.CATCH:
+		mood = DinoModel.Mood.CHASE
+	_dino.animate(delta, Vector2(velocity.x, velocity.z).length(), mood)
 
 
 func _enter(new_state: int) -> void:
@@ -241,7 +256,7 @@ func _set_eye_color() -> void:
 const MODEL_PATH := "res://assets/models/stalker.glb"
 
 
-## 仮モデル: 箱を組み合わせた二足歩行の恐竜。頭は -Z（前）向き。
+## 仮モデル（scripts/dino_model.gd）。頭は -Z（前）向き。
 func _build_model() -> void:
 	if ResourceLoader.exists(MODEL_PATH):
 		var scene := load(MODEL_PATH) as PackedScene
@@ -253,35 +268,9 @@ func _build_model() -> void:
 				anim.get_animation("walk").loop_mode = Animation.LOOP_LINEAR
 				anim.play("walk")
 			return
-	var skin := StandardMaterial3D.new()
-	skin.albedo_color = Color(0.22, 0.26, 0.18)
-	skin.roughness = 0.7
-	_part(Vector3(0, 0.95, 0), Vector3(0.6, 0.6, 1.1), skin, 0.0)            # 胴
-	_part(Vector3(0, 1.2, -0.65), Vector3(0.3, 0.35, 0.4), skin, -0.5)       # 首
-	_part(Vector3(0, 1.38, -0.95), Vector3(0.38, 0.32, 0.55), skin, 0.0)     # 頭
-	_part(Vector3(0, 1.0, 0.95), Vector3(0.22, 0.22, 1.1), skin, 0.25)       # 尾
-	_part(Vector3(-0.2, 0.35, 0.1), Vector3(0.16, 0.7, 0.22), skin, 0.0)     # 左脚
-	_part(Vector3(0.2, 0.35, 0.1), Vector3(0.16, 0.7, 0.22), skin, 0.0)      # 右脚
 	_eye_mat = StandardMaterial3D.new()
 	_eye_mat.emission_enabled = true
 	_eye_mat.emission_energy_multiplier = 3.0
-	for x in [-0.15, 0.15]:
-		var eye := MeshInstance3D.new()
-		var sm := SphereMesh.new()
-		sm.radius = 0.04
-		sm.height = 0.08
-		eye.mesh = sm
-		eye.material_override = _eye_mat
-		eye.position = Vector3(x, 1.45, -1.15)
-		add_child(eye)
-
-
-func _part(pos: Vector3, size: Vector3, mat: Material, tilt: float) -> void:
-	var mi := MeshInstance3D.new()
-	var bm := BoxMesh.new()
-	bm.size = size
-	mi.mesh = bm
-	mi.material_override = mat
-	mi.position = pos
-	mi.rotation.x = tilt
-	add_child(mi)
+	_dino = DinoModel.new()
+	_dino.eye_mat = _eye_mat
+	add_child(_dino)
