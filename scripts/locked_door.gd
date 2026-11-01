@@ -37,6 +37,7 @@ func interact(_player) -> void:
 	if _open:
 		return
 	if not Game.has_keycard:
+		Sfx.play("pickup", -14.0, 0.5)   # ブブッというエラー音の代わり
 		Game.show_hint("扉はロックされている。どこかにカードキーがあるはずだ")
 		return
 	_open = true
@@ -45,6 +46,7 @@ func interact(_player) -> void:
 		reader_mat.albedo_color = Color(0.2, 1.0, 0.3)
 		reader_mat.emission = Color(0.2, 1.0, 0.3)
 	Game.emit_noise(global_position, OPEN_NOISE, self)
+	Sfx.play_at("door", global_position, 2.0, 35.0, 0.0)
 	Game.show_hint("扉が重い音を立てて開く……急げ！")
 	var tw := create_tween()
 	tw.tween_property(self, "position:y", position.y + size.y - 0.1, 1.5)

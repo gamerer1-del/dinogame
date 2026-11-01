@@ -77,6 +77,8 @@ func _ready() -> void:
 	_spawn_stalkers()
 	_spawn_items()
 
+	Sfx.loop("ambience", -10.0)
+
 	hud = Hud.new()
 	hud.player = player
 	add_child(hud)
@@ -428,6 +430,9 @@ func _selftest() -> void:
 	await get_tree().create_timer(1.5).timeout
 	print("SELFTEST player in front: ", Stalker.State.keys()[s.state], " / game: ", Game.State.keys()[Game.state])
 	ok = ok and (s.state == Stalker.State.CHASE or s.state == Stalker.State.CATCH)
+
+	print("SELFTEST sounds loaded: %d / %d, played: %d" % [Sfx._streams.size(), Sfx.NAMES.size(), Sfx.played])
+	ok = ok and Sfx._streams.size() == Sfx.NAMES.size() and Sfx.played > 0
 
 	print("SELFTEST RESULT: ", "PASS" if ok else "FAIL")
 	get_tree().quit(0 if ok else 1)

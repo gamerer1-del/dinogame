@@ -182,6 +182,11 @@ func _physics_process(delta: float) -> void:
 			if Game.is_in_puddle(global_position):
 				r *= PUDDLE_MULT
 			Game.emit_noise(global_position, r, self)
+			var vol := -16.0 if is_crouching else (-1.0 if sprinting else -8.0)
+			if Game.is_in_puddle(global_position):
+				Sfx.play_at("step_wet", global_position, vol + 3.0)
+			else:
+				Sfx.play_at("step", global_position, vol)
 			noise_level = maxf(noise_level, r)
 
 
@@ -222,6 +227,7 @@ func _throw() -> void:
 	if ammo <= 0:
 		Game.show_hint("投げられる物を持っていない")
 		return
+	Sfx.play_at("step", global_position + Vector3.UP, -14.0, 10.0, 0.3)   # 投げる時の衣ずれ
 	ammo -= 1
 	var can := Throwable.new()
 	get_tree().current_scene.add_child(can)
@@ -239,6 +245,7 @@ func enter_hiding(spot: Node) -> void:
 	_light_before_hiding = _flashlight.visible
 	_flashlight.visible = false
 	Game.emit_noise(global_position, HIDE_NOISE, self)
+	Sfx.play_at("locker", global_position, -6.0)
 	Game.show_hint("息をひそめている……（Eで出る）")
 
 
@@ -249,6 +256,7 @@ func exit_hiding() -> void:
 	_shape.set_deferred("disabled", false)
 	_flashlight.visible = _light_before_hiding
 	Game.emit_noise(global_position, HIDE_NOISE, self)
+	Sfx.play_at("locker", global_position, -6.0)
 
 
 func _mat(c: Color) -> StandardMaterial3D:

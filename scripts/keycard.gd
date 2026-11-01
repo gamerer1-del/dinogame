@@ -36,5 +36,6 @@ func get_prompt(_player) -> String:
 
 func interact(_player) -> void:
 	Game.has_keycard = true
+	Sfx.play("pickup", -6.0, 0.8)
 	Game.show_hint("カードキーを手に入れた。北の扉を開けよう")
 	queue_free()
